@@ -66,21 +66,33 @@ public class Simulation : MonoBehaviour
 
     private void ExecutePerlinNoiseJob(Vector3[] vertices)
     {
-        foreach (var layer in _perlinNoiseLayers)
+
+        // lets make a list of jobhandles to keep track of them
+        var jobHandles = new List<JobHandle>();
+        var vertexArray = new NativeArray<Vector3>(vertices,Allocator.TempJob);
+
+        for (int i = 0; i < _perlinNoiseLayers.Count; i++)
         {
-            var vertexArray = new NativeArray<Vector3>(vertices, Allocator.TempJob);
-            
             var job = new PerlinNoiseLayerJob()
             {
-                vertices = vertexArray,
-                layer =  layer,
-                time =  Time.timeSinceLevelLoad
+                vertices =  vertexArray,
+                layer =  _perlinNoiseLayers[i],
+                time = Time.timeSinceLevelLoad
             };
-            JobHandle jobHandle = job.Schedule(vertices.Length, 250);
-            jobHandle.Complete();
-            
-            vertexArray.CopyTo(vertices);
-            vertexArray.Dispose();
+            // if first job, do nothing but schedule it and add the handle to the list
+            if (i == 0)
+            {
+                jobHandles.Add(job.Schedule(vertices.Length,4));
+            }
+            else
+            {
+                jobHandles.Add(job.Schedule(vertices.Length,4,jobHandles[i-1]));
+            }
         }
+        jobHandles.Last().Complete();
+        
+        vertexArray.CopyTo(vertices);
+        vertexArray.Dispose();
+        
     }
 }
