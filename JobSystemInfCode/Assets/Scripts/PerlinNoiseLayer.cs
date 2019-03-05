@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 [Serializable]
-public class PerlinNoiseLayer
+public struct PerlinNoiseLayer
 {
     public float Scale;
     public float Speed;

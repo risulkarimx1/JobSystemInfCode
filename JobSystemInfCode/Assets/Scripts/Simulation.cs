@@ -1,12 +1,14 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.Collections;
+using Unity.Jobs;
 using UnityEngine;
 
 public class Simulation : MonoBehaviour
 {
+    [SerializeField] private bool _useJobSystem;
     [SerializeField] private MeshFilter _meshFilter;
-
     [SerializeField] private List<PerlinNoiseLayer> _perlinNoiseLayers;
     // Start is called before the first frame update
     private void Awake()
@@ -26,13 +28,23 @@ public class Simulation : MonoBehaviour
 
         FlattenMesh(vertices);
 
-        foreach (var layer in _perlinNoiseLayers)
+        if (_useJobSystem)
         {
-            AddPerlinNoise(vertices, layer, Time.timeSinceLevelLoad);
+            ExecutePerlinNoiseJob(vertices);
         }
+        else
+        {
+            foreach (var layer in _perlinNoiseLayers)
+            {
+                AddPerlinNoise(vertices, layer, Time.timeSinceLevelLoad);
+            }
+        }
+
         _meshFilter.mesh.SetVertices(vertices.ToList());
         _meshFilter.mesh.RecalculateNormals();
     }
+
+
     private void FlattenMesh(Vector3[] vertices)
     {
         for (int i = 0; i < vertices.Length; i++)
@@ -52,4 +64,23 @@ public class Simulation : MonoBehaviour
         }
     }
 
+    private void ExecutePerlinNoiseJob(Vector3[] vertices)
+    {
+        foreach (var layer in _perlinNoiseLayers)
+        {
+            var vertexArray = new NativeArray<Vector3>(vertices, Allocator.TempJob);
+            
+            var job = new PerlinNoiseLayerJob()
+            {
+                vertices = vertexArray,
+                layer =  layer,
+                time =  Time.timeSinceLevelLoad
+            };
+            JobHandle jobHandle = job.Schedule(vertices.Length, 250);
+            jobHandle.Complete();
+            
+            vertexArray.CopyTo(vertices);
+            vertexArray.Dispose();
+        }
+    }
 }
